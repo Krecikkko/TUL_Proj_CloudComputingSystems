@@ -6,3 +6,6 @@ router = APIRouter(prefix="/api")
 def getFile():
     return {"file": "yourfile"}
 
+@router.get("/upload")
+def upload():
+    return {"upload": "upload file here"}
