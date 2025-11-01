@@ -1,3 +1,5 @@
 # My script to automate running the uvicorn server and activating venv
 # Do not delete!
 run.sh
+
+dev.db
