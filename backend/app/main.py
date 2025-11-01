@@ -1,13 +1,24 @@
 from fastapi import FastAPI
 from app.routes import (
-    users as users_router
+    users as users_router,
+    auth as auth_router
 )
+from .db import init_db
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Creating database and tables...")
+    await init_db()
+    yield
+    print("Application shutdown.")
 
-# Attach routers
+app = FastAPI(lifespan=lifespan)
+
+# Attach roouters
 app.include_router(users_router.router)
+app.include_router(auth_router.router)
 
-@app.get("/")
+@app.get("/api")
 def root():
     return {"message": "Hello from FastAPI!"}
