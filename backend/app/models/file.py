@@ -10,7 +10,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 Base = declarative_base()
 
 # ---------- Mock User (temporary) ----------
-# When ready to use authentication provided delete that!!!!!
+# When ready to use authentication and when merged with user module delete that!!!!!
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -26,13 +26,6 @@ class File(Base):
     uploaded_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     uploaded_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     current_version: Mapped[Optional[int]] = mapped_column(Integer)
-
-    # # relationships
-    # versions: Mapped[List["FileVersion"]] = relationship(
-    #     back_populates="file",
-    #     cascade="all, delete-orphan",
-    #     order_by="FileVersion.version_number",
-    # )
     uploader: Mapped[Optional[User]] = relationship()
 
     __table_args__ = (
