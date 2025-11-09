@@ -8,6 +8,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from .base import Base
 from .user import User
+from .file_version import FileVersion
 
 class File(Base):
     __tablename__ = "files"
