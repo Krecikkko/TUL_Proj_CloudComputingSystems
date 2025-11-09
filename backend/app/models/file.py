@@ -24,3 +24,5 @@ class File(Base):
         # Helpful for list views by newest file first
         Index("ix_files_uploaded_at_desc", uploaded_at.desc()),
     )
+
+    versions = relationship("FileVersion", back_populates="file", cascade="all, delete-orphan", order_by="FileVersion.version")
