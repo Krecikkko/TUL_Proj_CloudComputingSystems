@@ -21,3 +21,35 @@ user/<userID>/file/<fileId>/<safe_logical_name>
 ## File metadata
 Metadata of files will be stored in database in the following table and with following realtionships:
 ![image](files_table.png)
+
+## API endpoints
+`GET /api/files`
+List all files belonging to the authenticated user.
+Example:
+```
+curl -O -J http://localhost:8000/api/files
+```
+---
+`GET /api/upload`
+Upload a file to the specific directory for the current user.
+Example:
+```
+curl -O -J http://localhost:8000/api/upload
+```
+`GET /api/download/{file_id}`
+Downloads a file belonging to the authenticated user.
+- Authorization: user must own the file or have shared access.
+- Response: binary file stream.
+- Logs: "download" action is written to log_book.
+Example:
+```
+curl -O -J http://localhost:8000/api/download/15
+```
+---
+`DELETE /api/delete/{file_id}`
+Deletes the specified file both from storage and database.
+- Authorization: only the file owner may delete.
+Response:
+```
+curl -X DELETE http://localhost:8000/api/delete/15
+```
