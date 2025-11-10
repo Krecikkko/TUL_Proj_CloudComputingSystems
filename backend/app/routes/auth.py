@@ -7,6 +7,8 @@ from app.schemas.auth import RegisterIn, LoginIn
 from app.schemas.user import UserOut
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.utils.config import access_token_expires
+from app.utils.auth_deps import get_current_user, require_roles
+from app.schemas.me import MeOut
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -44,3 +46,19 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_session)):
         expires_delta=access_token_expires(),
     )
     return {"token": token, "user": UserOut.model_validate(user).model_dump()}
+
+@router.get("/me", response_model=MeOut, summary="Get current user info from JWT")
+async def get_me(user: User = Depends(get_current_user)):
+    # user.role to Enum → serialising to string
+    return MeOut(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=getattr(user.role, "name", str(user.role)),
+    )
+
+@router.post("/logout", status_code=204, summary="Logical logout (client removes token)")
+async def logout(_: User = Depends(get_current_user)):
+    # Lack of blacklist on the server's side — logging out means deletion of the token on the clients side
+    return
+

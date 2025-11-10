@@ -13,8 +13,11 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(subject: dict, expires_delta: timedelta) -> str:
     now = datetime.now(timezone.utc)
+    user_id = str(subject["id"])
+    username = subject.get("username")
     to_encode = {
-        "sub": subject,
+        "sub": user_id,
+        "username": username,
         "iat": int(now.timestamp()),
         "exp": int((now + expires_delta).timestamp()),
     }
