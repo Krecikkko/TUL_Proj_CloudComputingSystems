@@ -24,10 +24,17 @@ Metadata of files will be stored in database in the following table and with fol
 
 ## API endpoints
 `GET /api/files`
-List all files belonging to the authenticated user.
+List all files belonging to the authenticated user. There is possibility to search and sort the output.
 Example:
 ```
 curl -O -J http://localhost:8000/api/files
+```
+---
+`GET /api/files/{file_id}/info`
+List info about a file specified in a parameter.
+Example:
+```
+curl -O -J http://localhost:8000/api/files/1/info
 ```
 ---
 `GET /api/upload`
