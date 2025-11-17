@@ -2,7 +2,7 @@ import os, re, uuid, asyncio
 from pathlib import Path
 import aiofiles
 
-LOCAL_ROOT = "./storage"
+LOCAL_ROOT = "/srv/file-ops/data"
 SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 def safe_name(name: str) -> str:

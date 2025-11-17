@@ -9,7 +9,7 @@ from app.utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-@router.put("/me", response_model=UserOut, summary="Update current user's profile")
+@router.put("/updateme", response_model=UserOut, summary="Update current user's profile")
 async def update_user_profile(
     payload: UserUpdateIn,
     db: AsyncSession = Depends(get_session),
