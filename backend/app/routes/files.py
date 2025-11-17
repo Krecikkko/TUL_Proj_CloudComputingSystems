@@ -88,9 +88,8 @@ async def get_file_info(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    # Authorization check (file exists and user can access it)
-    _ = await assert_user_can_download(session, current_user.id, file_id)
-
+    # Authorization check 
+    _ = await assert_user_can_download(session, current_user, file_id) 
     # Fetch the file
     q = select(File).where(File.id == file_id).options(
         selectinload(File.uploader),
@@ -179,7 +178,7 @@ async def download_file(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    file_obj = await assert_user_can_download(session, current_user.id, file_id)
+    file_obj = await assert_user_can_download(session, current_user, file_id)
     storage_path = resolve_current_storage_path(file_obj)
     abs_path = _abs_under_root(storage_path) if storage_path else None
 
@@ -201,7 +200,7 @@ async def delete_file(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    file_obj = await assert_user_can_delete(session, current_user.id, file_id)
+    file_obj = await assert_user_can_delete(session, current_user, file_id)
     storage_path = resolve_current_storage_path(file_obj)
     abs_path = _abs_under_root(storage_path) if storage_path else None
 

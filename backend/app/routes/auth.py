@@ -20,11 +20,19 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_session))
     )
     existing = res.scalars().first()
     if existing:
+        details = {}
         if existing.username == payload.username:
-            raise HTTPException(status_code=400, detail="Username already taken")
+            details["username"] = "Username already taken."
         if existing.email == payload.email:
-            raise HTTPException(status_code=400, detail="Email already registered")
+            details["email"] = "Email already registered."
 
+        # Return a standardized 400 response with detailed field-level errors
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration failed due to validation errors.",
+            headers={"X-Validation-Failure": "True", "X-Failure-Fields": ", ".join(details.keys())}
+        )
+    
     user = User(
         username=payload.username,
         email=payload.email,
