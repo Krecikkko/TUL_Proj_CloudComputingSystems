@@ -1,4 +1,6 @@
-from pydantic import BaseModel, datetime
+from pydantic import BaseModel
+from datetime import datetime
+from typing import List
 
 class FileInfoOut(BaseModel):
     id: int
@@ -10,3 +12,6 @@ class FileInfoOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DeleteBatchIn(BaseModel):
+    file_ids: List[int]

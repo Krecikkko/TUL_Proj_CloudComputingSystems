@@ -13,6 +13,7 @@ class FileVersion(Base):
     size = Column(Integer, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     notes = Column(Text, nullable=True)
+    checksum = Column(String(64), nullable=True, index=True)
 
     file = relationship("File", back_populates="versions")
 

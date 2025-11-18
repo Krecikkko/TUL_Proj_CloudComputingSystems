@@ -4,7 +4,8 @@ from .routes import (
     users as users_router,
     auth as auth_router,
     files as files_router,
-    log as logbook_router
+    log as logbook_router,
+    share as share_router
 )
 from .db import init_db
 from contextlib import asynccontextmanager
@@ -18,12 +19,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Attach roouters
+# Attach routers
 app.include_router(users_router.router)
 app.include_router(auth_router.router)
 app.include_router(files_router.router)
 app.include_router(fileversion_router.router)
 app.include_router(logbook_router.router)
+app.include_router(share_router.router)
 
 @app.get("/api")
 def root():

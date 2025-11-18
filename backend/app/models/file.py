@@ -19,6 +19,9 @@ class File(Base):
     uploaded_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     uploaded_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     current_version: Mapped[Optional[int]] = mapped_column(Integer)
+
+    share_link_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, unique=True, index=True)
+
     uploader: Mapped[Optional[User]] = relationship()
 
     __table_args__ = (

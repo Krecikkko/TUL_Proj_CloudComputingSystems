@@ -9,7 +9,7 @@ class LogBook(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    action = Column(String, nullable=False)  # "login","logout","upload","download","delete"
+    action = Column(String, nullable=False)  # "login","logout","upload","download","delete","rollback","download_share","share_create"
     file_id = Column(Integer, ForeignKey("files.id", ondelete="SET NULL"), nullable=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     ip_address = Column(String, nullable=True)
@@ -17,7 +17,7 @@ class LogBook(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "action in ('login','logout','upload','download','delete','rollback')",
+            "action in ('login','logout','upload','download','delete','rollback','download_share','share_create')",
             name="ck_log_book_action"
         ),
         Index('idx_log_timestamp', 'timestamp'),

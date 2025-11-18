@@ -5,6 +5,7 @@ from sqlalchemy import select, func, desc, asc, String
 from sqlalchemy.orm import selectinload
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from ..db import get_session
 from ..models.file import File, User
@@ -14,6 +15,7 @@ from ..utils.permissions import assert_user_can_delete, assert_user_can_download
 from ..utils.auth_deps import get_current_user
 from app.utils.logging import log_action
 from app.core.constants import MAX_UPLOAD_BYTES
+from app.schemas.file import DeleteBatchIn
 
 router = APIRouter(prefix="/api", tags=["Files"])
 
@@ -26,15 +28,6 @@ def validate_file_size(file_obj) -> None:
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="File exceeds 100MB limit"
         )
-
-# Mock "auth": we consider user_id = 1 and we create it if it doesnt exist
-# async def get_current_user_id(session: AsyncSession = Depends(get_session)) -> int:
-#     user = (await session.execute(select(User).where(User.id == 1))).scalars().first()
-#     if not user:
-#         user = User(id=1, username="user", email="mock@example.com", hashed_password="password", role="admin")
-#         session.add(user)
-#         await session.commit()
-#     return 1
 
 @router.get("/files")
 async def list_files(
@@ -118,99 +111,91 @@ async def upload(
     file: UploadFile = FileParam(...),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    notes: Optional[str] = None # Dodano opcjonalną notatkę do wersji
+    notes: Optional[str] = None
 ):
     if not file.filename:
         raise HTTPException(400, "missing filename")
     
-    # size validation
     validate_file_size(file)
 
     client_ip = request.client.host if request.client else None
 
-    # 1. Sprawdź, czy plik o tej samej nazwie już istnieje dla tego użytkownika
+    # 1. Określ ID i wersję (dla ścieżki zapisu)
     existing_file_res = await session.execute(
         select(File)
         .where(File.uploaded_by == current_user.id)
         .where(File.filename == file.filename)
     )
-    existing_file = existing_file_res.scalars().first() #
-    
-    if existing_file:
-        # ZNALEZIONO ISTNIEJĄCY PLIK - DODAJ NOWĄ WERSJĘ (UPDATE)
-        
-        # 2. Oblicz następny numer wersji
-        # Wyszukaj maksymalny numer wersji dla danego pliku
+    existing_file = existing_file_res.scalars().first()
+
+    if not existing_file:
+        f = File(filename=file.filename, filepath="", size=None, uploaded_by=current_user.id, current_version=1)
+        session.add(f)
+        await session.flush()
+        file_id = f.id
+        initial_version = 1
+    else:
+        file_id = existing_file.id
         versions_res = await session.execute(
-            select(func.max(FileVersion.version_number)).where(FileVersion.file_id == existing_file.id)
+            select(func.max(FileVersion.version_number)).where(FileVersion.file_id == file_id)
         )
         max_version = versions_res.scalar_one_or_none()
-        
-        # Następna wersja to maksymalna wersja + 1
-        next_version = (max_version if max_version is not None else existing_file.current_version or 0) + 1 #
-        
-        # 3. Zapisz plik do nowego katalogu wersji
-        rel_path = build_rel_path(current_user.id, existing_file.id, file.filename, next_version)
-        size = await save_upload_stream(file, rel_path) #
-        
-        # 4. Dodaj nową wersję do bazy danych
+        initial_version = (max_version if max_version is not None else existing_file.current_version or 0) + 1
+
+    # 2. Zapisz plik tymczasowo, aby uzyskać rozmiar i hash
+    temp_rel_path = build_rel_path(current_user.id, file_id, file.filename, initial_version)
+    size, checksum = await save_upload_stream(file, temp_rel_path) # Używamy nowej funkcji z checksum
+
+    # 3. Sprawdzenie de-duplikacji
+    duplicate_res = await session.execute(
+        select(FileVersion).where(FileVersion.checksum == checksum)
+    )
+    duplicate_version = duplicate_res.scalars().first()
+    
+    if duplicate_version:
+        # Znaleziono duplikat: usuń plik i użyj ścieżki duplikatu
+        Path(_abs_under_root(temp_rel_path)).unlink(missing_ok=True)
+        final_rel_path = duplicate_version.filepath
+        final_size = duplicate_version.size
+    else:
+        # Brak duplikatu: użyj nowo przesłanego pliku
+        final_rel_path = temp_rel_path
+        final_size = size
+
+    # 4. Zapisz/Aktualizuj rekordy w DB
+    
+    if existing_file:
+        # Aktualizacja istniejącego pliku
+        existing_file.filepath = final_rel_path
+        existing_file.size = final_size
+        existing_file.current_version = initial_version
+
         v = FileVersion(
-            file_id=existing_file.id,
-            version_number=next_version,
-            filepath=rel_path,
-            size=size,
-            notes=notes,
-        ) #
+            file_id=file_id, version_number=initial_version, filepath=final_rel_path, size=final_size, notes=notes, checksum=checksum
+        )
         session.add(v)
+        await session.commit()
         
-        # 5. Zaktualizuj główny rekord File
-        existing_file.filepath = rel_path
-        existing_file.size = size
-        existing_file.current_version = next_version
+        log_details = {"size": final_size, "version": initial_version, "duplicate": bool(duplicate_version)}
+        await log_action(session, user_id=current_user.id, action="upload", file_id=file_id, details=log_details, ip_address=client_ip)
         
-        await session.commit() #
-        await log_action(session, user_id=current_user.id, action="upload", file_id=existing_file.id, details={"size": size, "version": next_version}, ip_address=client_ip)
-        
-        return {"file_id": existing_file.id, "filename": existing_file.filename, "size": size, "version": next_version, "message": "New version uploaded"}
+        return {"file_id": file_id, "filename": existing_file.filename, "size": final_size, "version": initial_version, "message": f"New version uploaded ({'deduplicated' if duplicate_version else 'new file'})"}
 
     else:
-        # BRAK ISTNIEJĄCEGO PLIKU - TWORZYMY NOWY PLIK
-        initial_version = 1
+        # Tworzenie nowego pliku (f już ma ID)
+        f.filepath = final_rel_path
+        f.size = final_size
         
-        # 1) Utwórz rekord File
-        f = File(
-            filename=file.filename,
-            filepath="",
-            size=None,
-            uploaded_by=current_user.id,
-            current_version=initial_version 
-        ) #
-        session.add(f)
-        await session.flush()  # nada id
-    
-        # 2) Zapisz plik do katalogu wersji 1
-        rel_path = build_rel_path(current_user.id, f.id, file.filename, initial_version)
-        size = await save_upload_stream(file, rel_path)
-    
-        # 3) Zaktualizuj rekord File
-        f.filepath = rel_path
-        f.size = size
-        
-        # 4) Utwórz FileVersion (version_number = 1)
         v = FileVersion(
-            file_id=f.id,
-            version_number=initial_version,
-            filepath=rel_path,
-            size=size,
-            notes=notes,
-        ) #
+            file_id=file_id, version_number=initial_version, filepath=final_rel_path, size=final_size, notes=notes, checksum=checksum
+        )
         session.add(v)
         await session.commit()
     
-        # 5) Log upload
-        await log_action(session, user_id=current_user.id, action="upload", file_id=f.id, details={"size": size, "version": initial_version}, ip_address=client_ip)
+        log_details = {"size": final_size, "version": initial_version, "duplicate": bool(duplicate_version)}
+        await log_action(session, user_id=current_user.id, action="upload", file_id=file_id, details=log_details, ip_address=client_ip)
     
-        return {"file_id": f.id, "filename": f.filename, "size": size, "version": initial_version, "message": "File created and version 1 uploaded"}
+        return {"file_id": file_id, "filename": f.filename, "size": final_size, "version": initial_version, "message": f"File created and version 1 uploaded ({'deduplicated' if duplicate_version else 'new file'})"}
 
 def resolve_current_storage_path(file_obj) -> Optional[str]:
     # preferuj główny filepath
@@ -274,3 +259,88 @@ async def delete_file(
     await log_action(session, user_id=current_user.id, action="delete", file_id=file_id, ip_address=client_ip)
 
     return JSONResponse({"message": "File deleted successfully"}, status_code=status.HTTP_200_OK)
+
+@router.post("/delete-multiple", status_code=status.HTTP_200_OK, summary="Batch delete files")
+async def delete_multiple_files(
+    payload: DeleteBatchIn,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if not payload.file_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File IDs list cannot be empty")
+
+    deleted_count = 0
+    failed_ids = []
+    
+    # Przetwarzaj unikalne ID
+    for file_id in set(payload.file_ids): 
+        try:
+            # Użyj istniejącej logiki autoryzacji (tylko właściciel/admin)
+            file_obj = await assert_user_can_delete(session, current_user, file_id)
+
+            # Usuwanie pliku fizycznego (reuse logic from delete_file)
+            storage_path = resolve_current_storage_path(file_obj)
+            abs_path = _abs_under_root(storage_path) if storage_path else None
+            
+            if storage_path:
+                try:
+                    p = Path(abs_path)
+                    if p.exists():
+                        p.unlink()
+                except Exception as e:
+                    # Loguj błąd, ale kontynuuj usuwanie z DB
+                    client_ip = request.client.host if request.client else None
+                    await log_action(session, user_id=current_user.id, action="delete_error", file_id=file_id, details={"error": str(e), "batch": True}, ip_address=client_ip)
+            
+            # Usuń rekord z DB (cascade delete usunie też FileVersions)
+            await session.delete(file_obj)
+            await session.commit()
+            
+            # Loguj udane usunięcie
+            client_ip = request.client.host if request.client else None
+            await log_action(session, user_id=current_user.id, action="delete", file_id=file_id, details={"batch": True}, ip_address=client_ip)
+            
+            deleted_count += 1
+            
+        except HTTPException as e:
+            # Błąd autoryzacji lub 404
+            failed_ids.append({"id": file_id, "detail": e.detail})
+        except Exception as e:
+            failed_ids.append({"id": file_id, "detail": f"Internal server error: {str(e)}"})
+
+
+    if deleted_count == 0 and failed_ids:
+        # Jeśli lista nie była pusta, ale nie udało się usunąć żadnego pliku
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to delete any files. Check details.",
+            headers={"X-Failed-Deletes": str([f['id'] for f in failed_ids])} # Zwróć tylko ID
+        )
+    
+    return {
+        "message": f"Successfully deleted {deleted_count} files.",
+        "deleted_count": deleted_count,
+        "failed_to_delete": failed_ids
+    }
+
+@router.post("/files/{file_id}/share", summary="Generate or retrieve a sharing link for a file")
+async def generate_share_link(
+    file_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    # Ograniczone do właściciela (używając assert_user_can_delete, który sprawdza własność)
+    file_obj = await assert_user_can_delete(session, current_user, file_id)
+
+    if not file_obj.share_link_id:
+        file_obj.share_link_id = str(uuid4())
+        await session.commit()
+        await session.refresh(file_obj)
+        
+        await log_action(session, user_id=current_user.id, action="share_create", file_id=file_id)
+
+    # Zwróć ścieżkę do publicznego endpointu
+    share_url = f"/share/{file_obj.share_link_id}" 
+
+    return {"message": "Share link generated/retrieved", "share_id": file_obj.share_link_id, "share_url": share_url}
