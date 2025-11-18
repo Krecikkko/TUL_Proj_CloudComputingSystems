@@ -9,9 +9,11 @@ def safe_name(name: str) -> str:
     n = SAFE.sub("_", name).strip("._") or "file"
     return n[:255]
 
-def build_rel_path(user_id: int, file_id: int, logical_name: str) -> str:
-    # without version number
-    return f"user/{user_id}/file/{file_id}/{safe_name(logical_name)}"
+def build_rel_path(user_id: int, file_id: int, logical_name: str, version_number: int) -> str:
+    """Tworzy relatywną ścieżkę uwzględniającą ID użytkownika, ID pliku oraz numer wersji."""
+    # Structure: user/<userID>/file/<fileId>/v<version_number>/<safe_logical_name>
+    safe_logical_name = safe_name(logical_name)
+    return f"user/{user_id}/file/{file_id}/v{version_number}/{safe_logical_name}" #
 
 def _abs_under_root(rel: str) -> str:
     root = os.path.abspath(LOCAL_ROOT)

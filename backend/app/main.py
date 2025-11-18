@@ -1,8 +1,10 @@
 from fastapi import FastAPI
-from app.routes import (
+from .routes import (
+    fileversion as fileversion_router,
     users as users_router,
     auth as auth_router,
-    files as files_router
+    files as files_router,
+    log as logbook_router
 )
 from .db import init_db
 from contextlib import asynccontextmanager
@@ -20,6 +22,8 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(users_router.router)
 app.include_router(auth_router.router)
 app.include_router(files_router.router)
+app.include_router(fileversion_router.router)
+app.include_router(logbook_router.router)
 
 @app.get("/api")
 def root():

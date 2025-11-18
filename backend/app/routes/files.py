@@ -15,7 +15,7 @@ from ..utils.auth_deps import get_current_user
 from app.utils.logging import log_action
 from app.core.constants import MAX_UPLOAD_BYTES
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["Files"])
 
 def validate_file_size(file_obj) -> None:
     file_obj.file.seek(0, 2)
@@ -118,6 +118,7 @@ async def upload(
     file: UploadFile = FileParam(...),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    notes: Optional[str] = None # Dodano opcjonalną notatkę do wersji
 ):
     if not file.filename:
         raise HTTPException(400, "missing filename")
@@ -125,41 +126,91 @@ async def upload(
     # size validation
     validate_file_size(file)
 
-    # 1) Create file record (na razie puste filepath/size – uzupełnimy po zapisie)
-    f = File(
-        filename=file.filename,
-        filepath="",
-        size=None,
-        uploaded_by=current_user.id,
-    )
-    session.add(f)
-    await session.flush()  # nada id
-
-    # 2) Save file to the disk
-    rel_path = build_rel_path(current_user.id, f.id, file.filename)
-    size = await save_upload_stream(file, rel_path)
-
-    # 3) Update file record
-    f.filepath = rel_path
-    f.size = size
-    await session.commit()
-
-    # 4) Create FileVersion (version_number = 1 dla nowego pliku)
-    v = FileVersion(
-        file_id=f.id,
-        version_number=1,
-        filepath=rel_path,
-        size=size,
-        notes=None,  # jeśli chcesz dodać opis – przekaż z requestu
-    )
-    session.add(v)
-    await session.commit()
-
-    # 5) Log upload (z IP)
     client_ip = request.client.host if request.client else None
-    await log_action(session, user_id=current_user.id, action="upload", file_id=f.id, details={"size": size}, ip_address=client_ip)
 
-    return {"file_id": f.id, "filename": f.filename, "size": size}
+    # 1. Sprawdź, czy plik o tej samej nazwie już istnieje dla tego użytkownika
+    existing_file_res = await session.execute(
+        select(File)
+        .where(File.uploaded_by == current_user.id)
+        .where(File.filename == file.filename)
+    )
+    existing_file = existing_file_res.scalars().first() #
+    
+    if existing_file:
+        # ZNALEZIONO ISTNIEJĄCY PLIK - DODAJ NOWĄ WERSJĘ (UPDATE)
+        
+        # 2. Oblicz następny numer wersji
+        # Wyszukaj maksymalny numer wersji dla danego pliku
+        versions_res = await session.execute(
+            select(func.max(FileVersion.version_number)).where(FileVersion.file_id == existing_file.id)
+        )
+        max_version = versions_res.scalar_one_or_none()
+        
+        # Następna wersja to maksymalna wersja + 1
+        next_version = (max_version if max_version is not None else existing_file.current_version or 0) + 1 #
+        
+        # 3. Zapisz plik do nowego katalogu wersji
+        rel_path = build_rel_path(current_user.id, existing_file.id, file.filename, next_version)
+        size = await save_upload_stream(file, rel_path) #
+        
+        # 4. Dodaj nową wersję do bazy danych
+        v = FileVersion(
+            file_id=existing_file.id,
+            version_number=next_version,
+            filepath=rel_path,
+            size=size,
+            notes=notes,
+        ) #
+        session.add(v)
+        
+        # 5. Zaktualizuj główny rekord File
+        existing_file.filepath = rel_path
+        existing_file.size = size
+        existing_file.current_version = next_version
+        
+        await session.commit() #
+        await log_action(session, user_id=current_user.id, action="upload", file_id=existing_file.id, details={"size": size, "version": next_version}, ip_address=client_ip)
+        
+        return {"file_id": existing_file.id, "filename": existing_file.filename, "size": size, "version": next_version, "message": "New version uploaded"}
+
+    else:
+        # BRAK ISTNIEJĄCEGO PLIKU - TWORZYMY NOWY PLIK
+        initial_version = 1
+        
+        # 1) Utwórz rekord File
+        f = File(
+            filename=file.filename,
+            filepath="",
+            size=None,
+            uploaded_by=current_user.id,
+            current_version=initial_version 
+        ) #
+        session.add(f)
+        await session.flush()  # nada id
+    
+        # 2) Zapisz plik do katalogu wersji 1
+        rel_path = build_rel_path(current_user.id, f.id, file.filename, initial_version)
+        size = await save_upload_stream(file, rel_path)
+    
+        # 3) Zaktualizuj rekord File
+        f.filepath = rel_path
+        f.size = size
+        
+        # 4) Utwórz FileVersion (version_number = 1)
+        v = FileVersion(
+            file_id=f.id,
+            version_number=initial_version,
+            filepath=rel_path,
+            size=size,
+            notes=notes,
+        ) #
+        session.add(v)
+        await session.commit()
+    
+        # 5) Log upload
+        await log_action(session, user_id=current_user.id, action="upload", file_id=f.id, details={"size": size, "version": initial_version}, ip_address=client_ip)
+    
+        return {"file_id": f.id, "filename": f.filename, "size": size, "version": initial_version, "message": "File created and version 1 uploaded"}
 
 def resolve_current_storage_path(file_obj) -> Optional[str]:
     # preferuj główny filepath
