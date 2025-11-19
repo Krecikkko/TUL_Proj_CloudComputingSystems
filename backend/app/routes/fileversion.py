@@ -21,7 +21,7 @@ async def list_file_versions(
     current_user: User = Depends(get_current_user) # Zabezpieczenie dostępu
 ): 
     # Autoryzacja: Weryfikacja dostępu do odczytu (właściciel lub współdzielony)
-    _ = await assert_user_can_download(db, current_user.id, file_id)
+    _ = await assert_user_can_download(db, current_user, file_id)
 
     result = await db.execute(
         select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number) 
@@ -53,7 +53,7 @@ async def download_zip(
     # Weryfikacja dostępu dla każdego pliku w liście
     for f_id in file_id:
         try:
-            file_obj = await assert_user_can_download(db, current_user.id, f_id)
+            file_obj = await assert_user_can_download(db, current_user, f_id)
             files_to_zip.append(file_obj)
         except HTTPException as e:
             if e.status_code == status.HTTP_404_NOT_FOUND:
@@ -94,7 +94,7 @@ async def rollback_file_version(
     current_user: User = Depends(get_current_user) # Zabezpieczenie dostępu
 ):
     # Autoryzacja: Rollback wymaga uprawnień właściciela, co weryfikuje assert_user_can_delete
-    cur_file = await assert_user_can_delete(db, current_user.id, file_id) # Zwraca obiekt File
+    cur_file = await assert_user_can_delete(db, current_user, file_id) # Zwraca obiekt File
 
     result_ver = await db.execute(
         select(FileVersion).where(
