@@ -1,10 +1,12 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from app.models.user import UserRole
 
 class UserOut(BaseModel):
     id: int
     username: str
     email: EmailStr
+    role: UserRole
     class Config:
         from_attributes = True
 

@@ -1,47 +1,47 @@
 # Authentication Module
 
-This document provides technical documentation for the **User
-Authentication and Authorization** module.\
+This document provides technical documentation for the **User Authentication and Authorization** module.  
 **Author:** Laura Gabryjańczyk
 
-------------------------------------------------------------------------
+---
 
 ## Setup & Configuration
 
 ### Environment
 
-This module is part of a backend system built with **FastAPI** and
-**SQLAlchemy**.\
+This module is part of a backend system built with **FastAPI** and **SQLAlchemy**.  
 To run it locally, you will need:
 
--   Python **3.10+**
--   `pip` and `virtualenv`
+- Python **3.10+**
+- `pip` and `virtualenv`
 
 ### Project Structure
 
 The module is located under the backend application:
 
-    backend/app/
-    ├── main.py
-    ├── db.py
-    ├── models/
-    │   └── user.py
-    ├── routes/
-    │   └── auth.py
-    ├── schemas/
-    │   ├── auth.py
-    │   ├── user.py
-    │   └── me.py
-    └── utils/
-        ├── security.py
-        ├── auth_deps.py
-        └── config.py
+```
+backend/app/
+├── main.py
+├── db.py
+├── models/
+│   └── user.py
+├── routes/
+│   └── auth.py
+├── schemas/
+│   ├── auth.py
+│   ├── user.py
+│   └── me.py
+└── utils/
+    ├── security.py
+    ├── auth_deps.py
+    └── config.py
+```
 
 ### Installation
 
 To set up a virtual environment and install dependencies:
 
-``` bash
+```bash
 python3 -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -49,13 +49,12 @@ pip install -r requirements.txt
 
 ### Database
 
-The module uses **SQLAlchemy** with asynchronous sessions.\
-Default development configuration uses **SQLite**. The database is
-created automatically on first run.
+The module uses **SQLAlchemy** with asynchronous sessions.  
+The default development configuration uses **SQLite**. The database is created automatically on first run.
 
 To create tables:
 
-``` bash
+```bash
 alembic upgrade head
 ```
 
@@ -63,67 +62,55 @@ alembic upgrade head
 
 From the `backend/` directory:
 
-``` bash
+```bash
 uvicorn app.main:app --reload
 ```
 
-Open the Swagger UI at:\
+Open the Swagger UI at:  
 http://localhost:8000/docs
 
-------------------------------------------------------------------------
+---
+
 
 ## User Management
 
-Users are registered and authenticated using JWT tokens.\
+Users are registered and authenticated using JWT tokens.  
 Each user has one of the following roles:
 
--   `user` --- standard access (default)
--   `admin` --- has access to protected routes
+- `user` — standard access (default)
+- `admin` — elevated access for protected routes
 
 ### User Data Storage
 
 The `users` table schema is as follows:
 
-  -------------------------------------------------------------------------
-  Field               Type                  Description
-  ------------------- --------------------- -------------------------------
-  `id`                Integer (PK)          Unique user ID
+| Field             | Type                  | Description |
+|-------------------|-----------------------|-------------|
+| `id`              | Integer (PK)          | Unique user ID |
+| `username`        | String                | Unique username |
+| `email`           | String                | Unique email address |
+| `hashed_password` | String                | Password hashed using `bcrypt` |
+| `role`            | Enum(`admin`, `user`) | Access level |
+| `created_at`      | DateTime              | Account creation timestamp |
 
-  `username`          String                Unique username
-
-  `email`             String                Unique email address
-
-  `hashed_password`   String                Password hashed using `bcrypt`
-
-  `role`              Enum(`admin`, `user`) Access level in the system
-
-  `created_at`        DateTime              Account creation timestamp
-  -------------------------------------------------------------------------
-
-------------------------------------------------------------------------
+---
 
 ## JWT Authentication
 
-Authentication uses JSON Web Tokens (**JWT**) for secure sessions.
+Authentication uses **JSON Web Tokens (JWT)** for secure sessions.
 
 ### Token Properties
 
-  -----------------------------------------------------------------------
-  Property              Value
-  --------------------- -------------------------------------------------
-  Algorithm             `HS256`
+| Property     | Value |
+|--------------|--------|
+| Algorithm    | `HS256` |
+| Secret key   | Defined in `app/utils/config.py` |
+| Expiration   | Managed by `access_token_expires()` |
+| Claims       | `sub`, `username`, `iat`, `exp` |
 
-  Secret key            Defined in `app/utils/config.py` (secure in
-                        production)
+Example decoded payload:
 
-  Expiration            Managed by `access_token_expires()`
-
-  Claims                `sub` (user ID), `username`, `iat`, `exp`
-  -----------------------------------------------------------------------
-
-Example decoded JWT payload:
-
-``` json
+```json
 {
   "sub": "1",
   "username": "user1",
@@ -132,13 +119,13 @@ Example decoded JWT payload:
 }
 ```
 
-------------------------------------------------------------------------
+---
 
 ## Role-Based Access Control (RBAC)
 
-Role validation is implemented using dependency injection:
+Access validation uses dependency injection:
 
-``` python
+```python
 from app.utils.auth_deps import require_roles
 
 @router.get("/admin/ping")
@@ -146,172 +133,91 @@ async def admin_ping(_: User = Depends(require_roles("admin"))):
     return {"ok": True}
 ```
 
-If the user lacks permissions, the server returns:
+Unauthorized access returns:
 
-``` json
+```json
 {"detail": "Insufficient role"}
 ```
 
-------------------------------------------------------------------------
+---
 
 ## API Endpoints
 
 ### `POST /api/register`
-
 Registers a new user.
 
--   Password is hashed using bcrypt.
--   Default role: `user`.
--   Checks for unique username and email.
-
-**Example:**
-
-``` bash
-curl -X POST http://localhost:8000/api/register   -H "Content-Type: application/json"   -d '{"username":"user1","email":"user1@example.com","password":"SuperHaslo123"}'
-```
-
-**Response:**
-
-``` json
-{"message": "User created successfully"}
-```
-
-------------------------------------------------------------------------
-
 ### `POST /api/login`
-
-Authenticates user credentials and returns a JWT token.
-
-**Example:**
-
-``` bash
-curl -X POST http://localhost:8000/api/login   -H "Content-Type: application/json"   -d '{"username":"user1","password":"SuperHaslo123"}'
-```
-
-**Response:**
-
-``` json
-{
-  "token": "JWT_TOKEN",
-  "user": {
-    "id": 1,
-    "username": "user1",
-    "email": "user1@example.com",
-    "role": "user"
-  }
-}
-```
-
-------------------------------------------------------------------------
+Authenticates a user and returns a JWT.
 
 ### `GET /api/me`
-
-Returns information about the currently authenticated user.
-
-Requires header:
-
-    Authorization: Bearer <JWT_TOKEN>
-
-**Example:**
-
-``` bash
-curl http://localhost:8000/api/me   -H "Authorization: Bearer JWT_TOKEN"
-```
-
-**Response:**
-
-``` json
-{
-  "id": 1,
-  "username": "user1",
-  "email": "user1@example.com",
-  "role": "user"
-}
-```
-
-------------------------------------------------------------------------
+Returns authenticated user data.
 
 ### `POST /api/logout`
-
-Performs logical logout (client-side only).\
-No server-maintained token blacklist.
-
-**Example:**
-
-``` bash
-curl -X POST http://localhost:8000/api/logout   -H "Authorization: Bearer JWT_TOKEN"
-```
-
-**Response:**\
-HTTP `204 No Content`
-
-------------------------------------------------------------------------
+Performs a client-side logout.
 
 ### `PUT /api/users/me`
+Updates the user's own profile or password.
 
-Updates the current user's profile (username, email) and optionally
-password.
+---
 
-**Authorization:**
+## 2. New User Management Endpoints
 
-    Authorization: Bearer <JWT_TOKEN>
+### **User Endpoints (require authorization)**
 
-**Body Schema (`UserUpdateIn`)** --- all fields are optional.
+#### `GET /api/users/stats`
+Returns file statistics for the currently authenticated user.
 
-  ------------------------------------------------------------------------------
-  Field            Type              Notes
-  ---------------- ----------------- -------------------------------------------
-  `username`       Optional\[str\]   New username
-
-  `email`          Optional\[str\]   New email address
-
-  `old_password`   Optional\[str\]   Required if `new_password` is provided
-
-  `new_password`   Optional\[str\]   New password (minimum 8 characters)
-  ------------------------------------------------------------------------------
-
-**Example: Update Email**
-
-``` bash
-curl -X PUT http://localhost:8000/api/users/me   -H "Content-Type: application/json"   -H "Authorization: Bearer JWT_TOKEN"   -d '{"email": "user1_new@example.com"}'
+**Example response:**
+```json
+{"files_uploaded": 12, "storage_used": "1.45 GB"}
 ```
 
-**Example: Update Password**
+---
 
-``` bash
-curl -X PUT http://localhost:8000/api/users/me   -H "Content-Type: application/json"   -H "Authorization: Bearer JWT_TOKEN"   -d '{"old_password": "SuperHaslo123", "new_password": "MegaSecure456"}'
+### **Administrative Endpoints**
+All require **admin role** and the dependency:
+```
+require_roles("admin")
 ```
 
-**Response (Success):**
+#### `GET /api/admin/users`
+Returns a list of all user accounts.
 
-``` json
-{
-  "id": 1,
-  "username": "user1",
-  "email": "user1_new@example.com"
-}
+#### `DELETE /api/admin/users/{user_id}`
+Permanently deletes a user account and all associated files.
+
+#### `PUT /api/admin/users/{user_id}/role`
+Updates a user's role.
+
+**Body:**
+```json
+{"role": "admin"}
 ```
 
-**Response (Error):**
+---
 
-``` json
-{
-  "detail": "Invalid old password"
-}
-```
+## 3. Updated Data Schemas
 
-------------------------------------------------------------------------
+### **UserOut Schema (updated)**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | User ID |
+| `username` | str | Username |
+| `email` | EmailStr | Email address |
+| `role` | str | User role (`user` or `admin`) |
+
+---
 
 ## Summary
 
-  Component          Description
-  ------------------ ---------------------------------------------------
-  Framework          FastAPI
-  ORM                SQLAlchemy (Async)
-  Authentication     JWT (HTTP Bearer)
-  Password Hashing   bcrypt
-  Security           Rate Limiting (Redis) on `/login` and `/register`
-  Endpoint Added     `PUT /api/users/me`
-  User Roles         `user`, `admin`
-  API Docs           Available at `/docs` (Swagger UI)
-  Database           SQLite (dev), compatible with PostgreSQL/MySQL
+| Component        | Description |
+|------------------|-------------|
+| Framework        | FastAPI |
+| ORM              | SQLAlchemy (Async) |
+| Authentication   | JWT |
+| New Endpoints    | User stats, admin user management |
+| User Roles       | `user`, `admin` |
+| API Docs         | `/docs` |
+| Database         | SQLite (dev), compatible with PostgreSQL/MySQL |
+
