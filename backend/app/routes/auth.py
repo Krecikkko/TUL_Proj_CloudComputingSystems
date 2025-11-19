@@ -9,10 +9,11 @@ from app.utils.security import hash_password, verify_password, create_access_tok
 from app.utils.config import access_token_expires
 from app.utils.auth_deps import get_current_user, require_roles
 from app.schemas.me import MeOut
+from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
-@router.post("/register")
+@router.post("/register", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 async def register(payload: RegisterIn, db: AsyncSession = Depends(get_session)):
     # Check username/email uniqueness
     res = await db.execute(
@@ -42,7 +43,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_session))
     await db.commit()
     return {"message": "User created successfully"}
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def login(payload: LoginIn, db: AsyncSession = Depends(get_session)):
     result = await db.execute(select(User).where(User.username == payload.username))
     user = result.scalars().first()
