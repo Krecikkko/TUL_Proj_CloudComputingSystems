@@ -11,7 +11,6 @@ from .routes import (
 from .db import init_db
 from contextlib import asynccontextmanager
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Creating database and tables...")
