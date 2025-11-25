@@ -14,7 +14,8 @@ export const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   try {
     const date = new Date(dateString);
-    return format(date, 'MMM dd, yyyy HH:mm');
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return format(localDate, 'MMM dd, yyyy HH:mm');
   } catch (error) {
     return 'Invalid date';
   }

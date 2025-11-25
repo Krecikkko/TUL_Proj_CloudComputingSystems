@@ -313,10 +313,14 @@ const Profile = () => {
                       Member Since
                     </Typography>
                     <Typography variant="body1">
-                      {user?.created_at ? 
-                        new Date(user.created_at).toLocaleDateString() : 
-                        'N/A'
-                      }
+						{user?.created_at ? 
+						  new Date(user.created_at).toLocaleDateString('en-US', {
+							year: 'numeric',
+							month: 'long',
+							day: 'numeric'
+						  }) : 
+						  'N/A'
+						}
                     </Typography>
                   </Box>
                 </Box>

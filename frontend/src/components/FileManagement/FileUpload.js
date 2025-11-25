@@ -31,26 +31,40 @@ const FileUpload = ({ onUploadSuccess }) => {
   const [notes, setNotes] = useState('');
 
   const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
-    const validFiles = acceptedFiles.map(file => ({
+  const validFiles = acceptedFiles.map(file => {
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      return {
+        file,
+        name: file.name,
+        size: file.size,
+        status: 'error',
+        progress: 0,
+        error: `File size exceeds ${MAX_FILE_SIZE_MB}MB limit`
+      };
+    }
+    return {
       file,
       name: file.name,
       size: file.size,
       status: 'pending',
       progress: 0,
       error: null
-    }));
+    };
+  });
 
-    const invalidFiles = rejectedFiles.map(({ file, errors }) => ({
-      file,
-      name: file.name,
-      size: file.size,
-      status: 'error',
-      progress: 0,
-      error: errors[0]?.message || 'Invalid file'
-    }));
+  const invalidFiles = rejectedFiles.map(({ file, errors }) => ({
+    file,
+    name: file.name,
+    size: file.size,
+    status: 'error',
+    progress: 0,
+    error: file.size > MAX_FILE_SIZE_MB * 1024 * 1024 
+      ? `File size exceeds ${MAX_FILE_SIZE_MB}MB limit (file is ${(file.size / (1024 * 1024)).toFixed(2)}MB)`
+      : errors[0]?.message || 'Invalid file'
+  }));
 
-    setFiles(prev => [...prev, ...validFiles, ...invalidFiles]);
-  }, []);
+  setFiles(prev => [...prev, ...validFiles, ...invalidFiles]);
+}, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

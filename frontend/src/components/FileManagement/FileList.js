@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -45,6 +45,7 @@ const FileList = () => {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -53,11 +54,23 @@ const FileList = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); 
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  useEffect(() => {
+    fetchFiles();
+  }, [debouncedSearchTerm, sortBy]);
+  
   const fetchFiles = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fileService.listFiles(searchTerm, sortBy);
+      const data = await fileService.listFiles(debouncedSearchTerm, sortBy);
       setFiles(data);
     } catch (error) {
       setError('Failed to load files');
@@ -66,10 +79,6 @@ const FileList = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchFiles();
-  }, [searchTerm, sortBy]);
 
   const handleSelectAll = (event) => {
     if (event.target.checked) {
