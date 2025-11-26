@@ -33,7 +33,7 @@ def validate_file_size(file_obj) -> None:
 async def list_files(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    search: Optional[str] = None, # query parameter for filtering
+    search: Optional[str] = None,
     sort: str = "date_desc",
 ):
     # Base query: only files belonging to the authenticated user
@@ -41,25 +41,23 @@ async def list_files(
     
     # 1. Add Search/Filter logic
     if search:
-        # Use ilike for case-insensitive partial match on filename
         q = q.where(File.filename.ilike(f"%{search}%"))
 
     # 2. Add Sort/Order logic
     if sort == "date_desc":
-        # Default: newest first
         q = q.order_by(File.uploaded_at.desc())
     elif sort == "date_asc":
         q = q.order_by(File.uploaded_at.asc())
     elif sort == "name_asc":
-        # Cast to String to ensure correct alphabetical sort for all database backends
-        q = q.order_by(File.filename.cast(String).asc())
+        # CHANGE HERE: Use func.lower() for case-insensitive sorting
+        q = q.order_by(func.lower(File.filename).asc())
     elif sort == "name_desc":
-        q = q.order_by(File.filename.cast(String).desc())
+        # CHANGE HERE: Use func.lower() for case-insensitive sorting
+        q = q.order_by(func.lower(File.filename).desc())
     else:
-        # Handle invalid sort parameter
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid sort parameter: {sort}. Must be one of date_desc, date_asc, name_asc, name_desc."
+            detail=f"Invalid sort parameter: {sort}"
         )
 
     result = await session.execute(q)
@@ -104,14 +102,6 @@ async def get_file_info(
         "owner": file_with_rels.uploader.username if file_with_rels.uploader else "Unknown",
         "versions": version_count
     }
-
-# backend/app/routes/files.py
-
-# ... existing imports ...
-# Ensure os is imported if you use os.path, or just use Path from pathlib
-from pathlib import Path 
-
-# ... existing code ...
 
 @router.post("/upload")
 async def upload(
