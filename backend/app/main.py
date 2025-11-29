@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .routes import (
     fileversion as fileversion_router,
     users as users_router,
@@ -21,6 +22,14 @@ async def lifespan(app: FastAPI):
     print("Application shutdown.")
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Attach routers
 app.include_router(users_router.router)
