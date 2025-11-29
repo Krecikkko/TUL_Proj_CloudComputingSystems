@@ -63,6 +63,7 @@ async def get_me(user: User = Depends(get_current_user)):
         username=user.username,
         email=user.email,
         role=getattr(user.role, "name", str(user.role)),
+        created_at=user.created_at
     )
 
 @router.post("/logout", status_code=204, summary="Logical logout (client removes token)")
