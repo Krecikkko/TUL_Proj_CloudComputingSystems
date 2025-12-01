@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 
 export const formatFileSize = (bytes) => {
   if (!bytes || bytes === 0) return '0 Bytes';
@@ -13,9 +13,8 @@ export const formatFileSize = (bytes) => {
 export const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   try {
-    const date = new Date(dateString);
-    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return format(localDate, 'MMM dd, yyyy HH:mm');
+    const date = dateString.endsWith('Z') ? new Date(dateString) : new Date(dateString + 'Z');
+    return format(date, 'MMM dd, yyyy HH:mm');
   } catch (error) {
     return 'Invalid date';
   }
@@ -24,8 +23,37 @@ export const formatDate = (dateString) => {
 export const formatRelativeTime = (dateString) => {
   if (!dateString) return 'N/A';
   try {
-    const date = new Date(dateString);
-    return formatDistanceToNow(date, { addSuffix: true });
+    const date = dateString.endsWith('Z') ? new Date(dateString) : new Date(dateString + 'Z');
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'just now';
+    }
+    
+    if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    }
+    
+    if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    }
+    
+    if (diffInSeconds < 2592000) {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days} day${days !== 1 ? 's' : ''} ago`;
+    }
+    
+    if (diffInSeconds < 31536000) {
+      const months = Math.floor(diffInSeconds / 2592000);
+      return `${months} month${months !== 1 ? 's' : ''} ago`;
+    }
+    
+    const years = Math.floor(diffInSeconds / 31536000);
+    return `${years} year${years !== 1 ? 's' : ''} ago`;
+    
   } catch (error) {
     return 'Invalid date';
   }

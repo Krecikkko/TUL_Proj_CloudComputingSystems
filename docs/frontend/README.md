@@ -27,15 +27,16 @@ React-based frontend for the Cloud Storage System, providing a modern UI for fil
 
 ### File Management
 - Drag-and-drop upload
-- Multiple file selection
-- Progress tracking
-- File search and sorting
-- Batch operations (ZIP download, bulk delete)
+- Search files by name
+- Sort by date or name
+- Select multiple files for bulk operations
+- Download individual files or multiple as ZIP
+- View version history for each file (current version only downloadable)
+- Generate public share links
 
 ### Version Control
-- Version history viewing
-- Rollback to previous versions
-- Version comparison
+- Track and view file version history
+- Download current file version
 
 ### Admin Panel
 - User management

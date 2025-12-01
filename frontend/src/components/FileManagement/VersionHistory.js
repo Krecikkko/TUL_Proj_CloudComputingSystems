@@ -20,7 +20,6 @@ import {
 } from '@mui/material';
 import {
   Download as DownloadIcon,
-  Restore as RestoreIcon,
   Close as CloseIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
@@ -45,6 +44,8 @@ const VersionHistory = ({ open, onClose, file, onVersionChange }) => {
     setError(null);
     try {
       const data = await fileService.getFileVersions(file.id);
+	  console.log('Backend timestamp:', data[0]?.uploaded_at);
+	  console.log('Current browser time:', new Date().toISOString());
       setVersions(data);
     } catch (error) {
       setError('Failed to load version history');
@@ -60,21 +61,6 @@ const VersionHistory = ({ open, onClose, file, onVersionChange }) => {
       setFileInfo(info);
     } catch (error) {
       console.error('Error fetching file info:', error);
-    }
-  };
-
-  const handleRollback = async (versionNumber) => {
-    if (window.confirm(`Roll back to version ${versionNumber}? This will make version ${versionNumber} the current version.`)) {
-      try {
-        await fileService.rollbackVersion(file.id, versionNumber);
-        await fetchVersions();
-        if (onVersionChange) {
-          onVersionChange();
-        }
-      } catch (error) {
-        console.error('Rollback error:', error);
-        setError('Failed to rollback version');
-      }
     }
   };
 
@@ -145,83 +131,77 @@ const VersionHistory = ({ open, onClose, file, onVersionChange }) => {
           <>
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="body2">
-                Only the current version can be downloaded. To access an older version, rollback to it first.
+                You can view the version history here. Only the current version can be downloaded.
               </Typography>
             </Alert>
             <List>
-              {versions.map((version, index) => (
-                <ListItem
-                  key={version.version}
-                  sx={{
-                    border: 1,
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    bgcolor: index === 0 ? 'action.selected' : 'background.paper'
-                  }}
-                >
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle1">
-                          Version {version.version}
-                        </Typography>
-                        {index === 0 && (
-                          <Chip 
-                            label="Current" 
-                            size="small" 
-                            color="primary" 
-                          />
-                        )}
-                      </Box>
-                    }
-                    secondary={
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">
-                          Size: {formatFileSize(version.size)}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Uploaded: {formatDate(version.uploaded_at)}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          ({formatRelativeTime(version.uploaded_at)})
-                        </Typography>
-                        {version.notes && (
-                          <Box sx={{ mt: 1 }}>
-                            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <InfoIcon fontSize="small" />
-                              {version.notes}
-                            </Typography>
-                          </Box>
-                        )}
-                      </Box>
-                    }
-                  />
-                  <ListItemSecondaryAction>
-                    {/* Only show download button for current version */}
-                    {index === 0 ? (
-                      <Tooltip title="Download current version">
-                        <IconButton
-                          edge="end"
-                          onClick={handleDownloadCurrent}
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Rollback to this version">
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleRollback(version.version_number)}
-                          color="primary"
-                        >
-                          <RestoreIcon />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
+              {versions.map((version) => {
+				  const maxVersion = Math.max(...versions.map(v => v.version));
+				  const isCurrent = version.version === maxVersion;
+				  
+				  return (
+					<ListItem
+					  key={version.version}
+					  sx={{
+						border: 1,
+						borderColor: 'divider',
+						borderRadius: 1,
+						mb: 1,
+						bgcolor: isCurrent ? 'action.selected' : 'background.paper'
+					  }}
+					>
+					  <ListItemText
+						primary={
+						  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+							<Typography variant="subtitle1">
+							  Version {version.version}
+							</Typography>
+							{isCurrent && (
+							  <Chip 
+								label="Current" 
+								size="small" 
+								color="primary" 
+							  />
+							)}
+						  </Box>
+						}
+						secondary={
+						  <Box>
+							<Typography variant="body2" color="textSecondary">
+							  Size: {formatFileSize(version.size)}
+							</Typography>
+							<Typography variant="body2" color="textSecondary">
+							  Uploaded: {formatDate(version.uploaded_at)}
+							</Typography>
+							<Typography variant="caption" color="textSecondary">
+							  ({formatRelativeTime(version.uploaded_at)})
+							</Typography>
+							{version.notes && (
+							  <Box sx={{ mt: 1 }}>
+								<Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+								  <InfoIcon fontSize="small" />
+								  {version.notes}
+								</Typography>
+							  </Box>
+							)}
+						  </Box>
+						}
+					  />
+					  <ListItemSecondaryAction>
+						{isCurrent && (
+						  <Tooltip title="Download current version">
+							<IconButton
+							  edge="end"
+							  onClick={handleDownloadCurrent}
+							>
+							  <DownloadIcon />
+							</IconButton>
+						  </Tooltip>
+						)}
+					  </ListItemSecondaryAction>
+					</ListItem>
+				  );
+				})}
             </List>
           </>
         )}

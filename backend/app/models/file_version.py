@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Text, Index
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -11,7 +11,7 @@ class FileVersion(Base):
     version_number = Column(Integer, nullable=False)
     filepath = Column(String(255), nullable=False)
     size = Column(Integer, nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     notes = Column(Text, nullable=True)
     checksum = Column(String(64), nullable=True, index=True)
 

@@ -52,7 +52,6 @@ api.interceptors.request.use((config) => {
 | Method | Endpoint | Description | Request | Response |
 |--------|----------|-------------|---------|----------|
 | GET | `/api/files/{id}/versions` | Get versions | - | `[{version, size, uploaded_at}]` |
-| POST | `/api/files/{id}/rollback/{v}` | Rollback | - | `{message}` |
 | POST | `/api/files/download-zip` | Download ZIP | `{file_ids: []}` | Binary ZIP |
 
 ### Admin Endpoints

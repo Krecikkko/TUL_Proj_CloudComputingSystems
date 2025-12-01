@@ -34,7 +34,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
+  
   const from = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
